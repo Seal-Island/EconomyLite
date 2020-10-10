@@ -13,6 +13,7 @@ import org.spongepowered.api.command.spec.CommandSpec.Builder;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.cause.Cause;
 import org.spongepowered.api.event.cause.EventContext;
+import org.spongepowered.api.service.economy.Currency;
 import org.spongepowered.api.service.economy.account.UniqueAccount;
 import org.spongepowered.api.service.economy.transaction.ResultType;
 import org.spongepowered.api.text.Text;
@@ -37,7 +38,7 @@ public class RemoveCommand extends BaseCommandExecutor<CommandSource> {
     public Builder getCommandSpecBuilder() {
         return CommandSpec.builder()
                 .executor(this)
-                .arguments(GenericArguments.user(Text.of("player")), GenericArguments.doubleNum(Text.of("amount")));
+                .arguments(GenericArguments.user(Text.of("player")), GenericArguments.doubleNum(Text.of("amount")), GenericArguments.optional(GenericArguments.string(Text.of("currency"))));
     }
 
     @Override
@@ -47,9 +48,21 @@ public class RemoveCommand extends BaseCommandExecutor<CommandSource> {
             String targetName = target.getName();
             BigDecimal toRemove = BigDecimal.valueOf(args.<Double>getOne("amount").get());
             Optional<UniqueAccount> uOpt = EconomyLite.getEconomyService().getOrCreateAccount(target.getUniqueId());
+            Currency currency;
+            if(args.hasAny("currency")) {
+                String currencyArgs = args.<String>getOne("currency").get();
+                if(EconomyLite.currencies.containsKey(currencyArgs)) {
+                    currency = EconomyLite.currencies.get(currencyArgs);
+                } else {
+                    src.sendMessage(messageStorage.getMessage("command.currency.invalid"));
+                    return;
+                }
+            } else {
+                currency = EconomyLite.getEconomyService().getDefaultCurrency();
+            }
             if (uOpt.isPresent()) {
                 UniqueAccount targetAccount = uOpt.get();
-                if (targetAccount.withdraw(EconomyLite.getCurrencyService().getCurrentCurrency(), toRemove,
+                if (targetAccount.withdraw(currency, toRemove,
                         Cause.of(EventContext.empty(),(EconomyLite.getInstance()))).getResult().equals(ResultType.SUCCESS)) {
                     src.sendMessage(messageStorage.getMessage("command.econ.removesuccess", "name", targetName));
                     attemptNotify(target);

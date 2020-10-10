@@ -39,12 +39,23 @@ public class BalTopCommand extends BaseCommandExecutor<CommandSource> {
     public Builder getCommandSpecBuilder() {
         return CommandSpec.builder()
                 .executor(this)
-                .arguments(GenericArguments.optional(GenericArguments.integer(Text.of("page"))));
+                .arguments(GenericArguments.optional(GenericArguments.integer(Text.of("page"))), GenericArguments.optional(GenericArguments.string(Text.of("currency"))));
     }
 
     @Override
     public void run(CommandSource src, CommandContext args) {
-        Currency current = EconomyLite.getCurrencyService().getCurrentCurrency();
+        Currency current;
+        if(args.hasAny("currency")) {
+            String currencyArgs = args.<String>getOne("currency").get();
+            if(EconomyLite.currencies.containsKey(currencyArgs)) {
+                current = EconomyLite.currencies.get(currencyArgs);
+            } else {
+                src.sendMessage(messages.getMessage("command.currency.invalid"));
+                return;
+            }
+        } else {
+            current = EconomyLite.getCurrencyService().getCurrentCurrency();
+        }
         TreeMap<String, BigDecimal> bals = new TreeMap<>();
         Optional<Integer> pOpt = args.<Integer>getOne("page");
         int pageNumber = 1;

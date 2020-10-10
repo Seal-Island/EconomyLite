@@ -13,6 +13,7 @@ import org.spongepowered.api.command.spec.CommandSpec.Builder;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.cause.Cause;
 import org.spongepowered.api.event.cause.EventContext;
+import org.spongepowered.api.service.economy.Currency;
 import org.spongepowered.api.service.economy.account.UniqueAccount;
 import org.spongepowered.api.service.economy.transaction.ResultType;
 import org.spongepowered.api.text.Text;
@@ -37,7 +38,7 @@ public class SetCommand extends BaseCommandExecutor<CommandSource> {
     public Builder getCommandSpecBuilder() {
         return CommandSpec.builder()
                 .executor(this)
-                .arguments(GenericArguments.user(Text.of("player")), GenericArguments.doubleNum(Text.of("balance")));
+                .arguments(GenericArguments.user(Text.of("player")), GenericArguments.doubleNum(Text.of("balance")), GenericArguments.optional(GenericArguments.string(Text.of("currency"))));
     }
 
     @Override
@@ -46,10 +47,22 @@ public class SetCommand extends BaseCommandExecutor<CommandSource> {
             User target = args.<User>getOne("player").get();
             String targetName = target.getName();
             BigDecimal newBal = BigDecimal.valueOf(args.<Double>getOne("balance").get());
+            Currency currency;
+            if(args.hasAny("currency")) {
+                String currencyArgs = args.<String>getOne("currency").get();
+                if(EconomyLite.currencies.containsKey(currencyArgs)) {
+                    currency = EconomyLite.currencies.get(currencyArgs);
+                } else {
+                    src.sendMessage(messageStorage.getMessage("command.currency.invalid"));
+                    return;
+                }
+            } else {
+                currency = EconomyLite.getEconomyService().getDefaultCurrency();
+            }
             Optional<UniqueAccount> uOpt = EconomyLite.getEconomyService().getOrCreateAccount(target.getUniqueId());
             if (uOpt.isPresent()) {
                 UniqueAccount targetAccount = uOpt.get();
-                if (targetAccount.setBalance(EconomyLite.getCurrencyService().getCurrentCurrency(), newBal,
+                if (targetAccount.setBalance(currency, newBal,
                         Cause.of(EventContext.empty(),(EconomyLite.getInstance()))).getResult().equals(ResultType.SUCCESS)) {
                     src.sendMessage(messageStorage.getMessage("command.econ.setsuccess", "name", targetName));
                     attemptNotify(target);

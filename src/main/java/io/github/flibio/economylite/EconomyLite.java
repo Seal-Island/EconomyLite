@@ -57,7 +57,9 @@ import org.spongepowered.api.text.serializer.TextSerializers;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Plugin(id = PluginInfo.ID, name = PluginInfo.NAME, version = PluginInfo.VERSION, description = PluginInfo.DESCRIPTION)
 public class EconomyLite {
@@ -83,6 +85,8 @@ public class EconomyLite {
     private static VirtualEconService virtualEconService;
     private static PlayerEconService playerEconService;
     public static CurrencyEconService currencyEconService;
+
+    public static Map<String, Currency> currencies = new HashMap<>();
 
     @Listener
     public void onConstruct(GameConstructionEvent event) {
@@ -208,6 +212,11 @@ public class EconomyLite {
             currencyManager.save();
         }
         logger.info("Using currency: " + currencyEconService.getCurrentCurrency().getName());
+
+        currencies.clear();
+        currencyEconService.getCurrencies().forEach(currency -> {
+            currencies.put(currency.getId(), currency);
+        });
     }
 
     public Logger getLogger() {

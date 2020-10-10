@@ -16,6 +16,7 @@ import org.spongepowered.api.command.spec.CommandSpec;
 import org.spongepowered.api.command.spec.CommandSpec.Builder;
 import org.spongepowered.api.event.cause.Cause;
 import org.spongepowered.api.event.cause.EventContext;
+import org.spongepowered.api.service.economy.Currency;
 import org.spongepowered.api.text.Text;
 
 import java.math.BigDecimal;
@@ -31,7 +32,7 @@ public class SetAllCommand extends BaseCommandExecutor<CommandSource> {
     public Builder getCommandSpecBuilder() {
         return CommandSpec.builder()
                 .executor(this)
-                .arguments(GenericArguments.doubleNum(Text.of("balance")));
+                .arguments(GenericArguments.doubleNum(Text.of("balance")), GenericArguments.optional(GenericArguments.string(Text.of("currency"))));
     }
 
     @Override
@@ -39,7 +40,19 @@ public class SetAllCommand extends BaseCommandExecutor<CommandSource> {
         if (args.getOne("balance").isPresent()) {
             String targetName = "all players";
             BigDecimal newBal = BigDecimal.valueOf(args.<Double>getOne("balance").get());
-            if (EconomyLite.getPlayerService().setBalanceAll(newBal, EconomyLite.getCurrencyService().getCurrentCurrency(),
+            Currency currency;
+            if(args.hasAny("currency")) {
+                String currencyArgs = args.<String>getOne("currency").get();
+                if(EconomyLite.currencies.containsKey(currencyArgs)) {
+                    currency = EconomyLite.currencies.get(currencyArgs);
+                } else {
+                    src.sendMessage(messageStorage.getMessage("command.currency.invalid"));
+                    return;
+                }
+            } else {
+                currency = EconomyLite.getEconomyService().getDefaultCurrency();
+            }
+            if (EconomyLite.getPlayerService().setBalanceAll(newBal, currency,
                     Cause.of(EventContext.empty(),(EconomyLite.getInstance())))) {
                 src.sendMessage(messageStorage.getMessage("command.econ.setsuccess", "name", targetName));
             } else {

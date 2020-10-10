@@ -19,6 +19,7 @@ import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.cause.Cause;
 import org.spongepowered.api.event.cause.EventContext;
+import org.spongepowered.api.service.economy.Currency;
 import org.spongepowered.api.service.economy.EconomyService;
 import org.spongepowered.api.service.economy.account.UniqueAccount;
 import org.spongepowered.api.service.economy.transaction.ResultType;
@@ -39,12 +40,24 @@ public class PayCommand extends BaseCommandExecutor<Player> {
     public Builder getCommandSpecBuilder() {
         return CommandSpec.builder()
                 .executor(this)
-                .arguments(GenericArguments.user(Text.of("player")), GenericArguments.doubleNum(Text.of("amount")));
+                .arguments(GenericArguments.user(Text.of("player")), GenericArguments.doubleNum(Text.of("amount")), GenericArguments.optional(GenericArguments.string(Text.of("currency"))));
     }
 
     @Override
     public void run(Player src, CommandContext args) {
         if (args.getOne("player").isPresent() && args.getOne("amount").isPresent()) {
+            Currency current;
+            if(args.hasAny("currency")) {
+                String currencyArgs = args.<String>getOne("currency").get();
+                if(EconomyLite.currencies.containsKey(currencyArgs)) {
+                    current = EconomyLite.currencies.get(currencyArgs);
+                } else {
+                    src.sendMessage(messageStorage.getMessage("command.currency.invalid"));
+                    return;
+                }
+            } else {
+                current = EconomyLite.getCurrencyService().getCurrentCurrency();
+            }
             BigDecimal amount = BigDecimal.valueOf(args.<Double>getOne("amount").get());
             if (amount.doubleValue() <= 0) {
                 src.sendMessage(messageStorage.getMessage("command.pay.invalid"));
@@ -52,12 +65,12 @@ public class PayCommand extends BaseCommandExecutor<Player> {
                 User target = args.<User>getOne("player").get();
                 if (!EconomyLite.getConfigManager().getValue(Boolean.class, false, "confirm-offline-payments") || target.isOnline()) {
                     // Complete the payment
-                    pay(target, amount, src);
+                    pay(target, amount, src, current);
                 } else {
                     src.sendMessage(messageStorage.getMessage("command.pay.confirm", "player", target.getName()));
                     // Check if they want to still pay
                     src.sendMessage(TextUtils.yesOrNo(c -> {
-                        pay(target, amount, src);
+                        pay(target, amount, src, current);
                     }, c -> {
                         src.sendMessage(messageStorage.getMessage("command.pay.confirmno", "player", target.getName()));
                     }));
@@ -69,18 +82,18 @@ public class PayCommand extends BaseCommandExecutor<Player> {
         }
     }
 
-    private void pay(User target, BigDecimal amount, Player src) {
+    private void pay(User target, BigDecimal amount, Player src, Currency currency) {
         String targetName = target.getName();
         if (!target.getUniqueId().equals(src.getUniqueId())) {
             Optional<UniqueAccount> uOpt = ecoService.getOrCreateAccount(src.getUniqueId());
             Optional<UniqueAccount> tOpt = ecoService.getOrCreateAccount(target.getUniqueId());
             if (uOpt.isPresent() && tOpt.isPresent()) {
                 if (uOpt.get()
-                        .transfer(tOpt.get(), ecoService.getDefaultCurrency(), amount, Cause.of(EventContext.empty(), (EconomyLite.getInstance())))
+                        .transfer(tOpt.get(), currency, amount, Cause.of(EventContext.empty(), (EconomyLite.getInstance())))
                         .getResult().equals(ResultType.SUCCESS)) {
-                    Text label = ecoService.getDefaultCurrency().getPluralDisplayName();
+                    Text label = currency.getPluralDisplayName();
                     if (amount.equals(BigDecimal.ONE)) {
-                        label = ecoService.getDefaultCurrency().getDisplayName();
+                        label = currency.getDisplayName();
                     }
                     src.sendMessage(messageStorage.getMessage("command.pay.success", "target", targetName, "amountandlabel",
                             String.format(Locale.ENGLISH, "%,.2f", amount) + " " + label.toPlain()));

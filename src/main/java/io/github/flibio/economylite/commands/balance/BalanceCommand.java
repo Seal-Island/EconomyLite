@@ -36,14 +36,41 @@ public class BalanceCommand extends BaseCommandExecutor<CommandSource> {
     public Builder getCommandSpecBuilder() {
         return CommandSpec.builder()
                 .executor(this)
-                .arguments(GenericArguments.optional(GenericArguments.user(Text.of("player"))));
+                .arguments(GenericArguments.optional(GenericArguments.user(Text.of("player"))), GenericArguments.optional(GenericArguments.string(Text.of("currency"))));
     }
 
     @Override
     public void run(CommandSource src, CommandContext args) {
         Currency currency = currencyService.getCurrentCurrency();
         if (args.getOne("player").isPresent()) {
-            if (src.hasPermission("economylite.admin.balanceothers")) {
+            if (args.getOne("currency").isPresent()) {
+                User target = args.<User>getOne("player").get();
+                String targetName = target.getName();
+                boolean isAccountOwner = src instanceof Player && target.getUniqueId().equals(((Player) src).getUniqueId());
+                if(isAccountOwner || src.hasPermission("economylite.admin.balanceothers")) {
+                    Optional<UniqueAccount> uOpt = EconomyLite.getEconomyService().getOrCreateAccount(target.getUniqueId());
+                    if (uOpt.isPresent()) {
+                        String currencyArg = args.<String>getOne("currency").get();
+                        if(EconomyLite.currencies.containsKey(currencyArg)) {
+                            Currency currencyToUse = EconomyLite.currencies.get(currencyArg);
+                            BigDecimal bal = uOpt.get().getBalance(currencyToUse);
+                            Text label = currencyToUse.getPluralDisplayName();
+                            if (bal.equals(BigDecimal.ONE)) {
+                                label = currencyToUse.getDisplayName();
+                            }
+                            src.sendMessage(messageStorage
+                                    .getMessage(isAccountOwner ? "command.balance" : "command.balanceother", "player", targetName, "balance", String.format(Locale.ENGLISH, "%,.2f", bal), "label",
+                                            TextSerializers.FORMATTING_CODE.serialize(label)));
+                        } else {
+                            src.sendMessage(messageStorage.getMessage("command.currency.invalid"));
+                        }
+                    } else {
+                        src.sendMessage(messageStorage.getMessage("command.error"));
+                    }
+                } else {
+                    src.sendMessage(messageStorage.getMessage("command.noperm"));
+                }
+            } else if (src.hasPermission("economylite.admin.balanceothers")) {
                 User target = args.<User>getOne("player").get();
                 String targetName = target.getName();
                 Optional<UniqueAccount> uOpt = EconomyLite.getEconomyService().getOrCreateAccount(target.getUniqueId());
